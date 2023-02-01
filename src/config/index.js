@@ -16,3 +16,5 @@ export const BCRYPT_SALTS_ROUNDS = process.env.BCRYPT_SALTS_ROUNDS;
 export const EMAIL = process.env.EMAIL;
 export const EMAIL_PASSWORD = process.env.EMAIL_PASSWORD;
 export const HOST_FRONT_VERIFY_ACCOUNT_LINK = process.env.HOST_FRONT_VERIFY_ACCOUNT_LINK;
+export const JWT_SECRET = process.env.JWT_SECRET;
+export const JWT_TIME_OF_LIFE = process.env.JWT_TIME_OF_LIFE;

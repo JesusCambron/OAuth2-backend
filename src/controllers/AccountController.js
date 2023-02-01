@@ -1,7 +1,8 @@
-import bcrypt from "bcrypt"
-import crypto from "crypto"
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { PostgresConnection } from "../db/index.js"
-import { BCRYPT_SALTS_ROUNDS, HOST_FRONT_VERIFY_ACCOUNT_LINK, URL_USER_INFO } from "../config/index.js";
+import { BCRYPT_SALTS_ROUNDS, HOST_FRONT_VERIFY_ACCOUNT_LINK, URL_USER_INFO, JWT_SECRET, JWT_TIME_OF_LIFE } from "../config/index.js";
 import { HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST } from "../utils/HttpStatus.js";
 import { sendEmail } from "../utils/EmailSender.js";
 
@@ -45,6 +46,22 @@ export const verifyAccount = async (req, res) => {
     res.status(HTTP_200_OK).send({ message: "Account verify" });
   } catch (error) {
     res.status(HTTP_400_BAD_REQUEST).send({ error: error.message });
+  }
+}
+
+export const resendToken = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const account = await findAccountByEmail(email);
+    if (account) {
+      const token = await findTokenByAccount(account.id);
+      const verifyLink = `${HOST_FRONT_VERIFY_ACCOUNT_LINK}/${account.id}/${token}`;
+      await sendEmail(email, "Activate your acount", 'VerifyAccount', { verifyLink })
+      return res.status(HTTP_200_OK).send({ message: "Resend" });
+    }
+    return res.status(HTTP_400_BAD_REQUEST).send({ message: "Email not found" });
+  } catch (error) {
+    return res.status(HTTP_400_BAD_REQUEST).send({ message: error.message, constraint: error.constraint });
   }
 }
 
@@ -97,26 +114,21 @@ const deleteToken = async (token) => {
   }
 }
 
-export const resendToken = async (req, res) => {
-  const { email } = req.body;
-  try {
-    const account = findAccountByEmail(email);
-    const verifyLink = `${HOST_FRONT_VERIFY_ACCOUNT_LINK}/${account.id}/${tokenVerify.token}`;
-    await sendEmail(email, "Activate your acount", 'VerifyAccount', { verifyLink })
-    return { status: HTTP_200_OK, message: { message: "Resend" } };
-  } catch (error) {
-    return { status: HTTP_400_BAD_REQUEST, message: { message: error.message, constraint: error.constraint } };
-  }
-}
-
 const validateLogin = async (email, pw) => {
   try {
     const account = await findAccountByEmail(email);
     if (account) {
       if (!account.is_active) return { status: HTTP_400_BAD_REQUEST, message: { message: "VERIFY YOUR ACCOUNT" } };
 
-      if (validatePassword(pw, account.pw)) return { status: HTTP_201_CREATED, message: { message: "LOGIN" } };
+      if (validatePassword(pw, account.pw)) {
+        const token = jwt.sign({
+          first_name: account.first_name,
+          last_name: account.last_name,
+          email: account.email,
+        }, JWT_SECRET, { expiresIn: JWT_TIME_OF_LIFE });
 
+        return { header: { msg: "auth-token", token }, status: HTTP_200_OK, message: { data: token } };
+      }
       return { status: HTTP_400_BAD_REQUEST, message: { message: "INCORRECT CREDENTIALS" } };
     }
     return { status: HTTP_400_BAD_REQUEST, message: { message: "CREATE AN ACCOUNT" } };
@@ -143,7 +155,7 @@ const findAccountBy = async (by, data) => {
   const dbConnection = await PostgresConnection.connect();
   let result;
   try {
-    result = await dbConnection.query(`SELECT first_name, last_name, email, pw, is_active FROM account WHERE ${by} = '${data}'`);
+    result = await dbConnection.query(`SELECT id, first_name, last_name, email, pw, is_active FROM account WHERE ${by} = '${data}'`);
     result = result.rows;
   } catch (error) {
     throw error;
@@ -158,6 +170,20 @@ const findToken = async (id_account, token) => {
   let result;
   try {
     result = await dbConnection.query(`SELECT id_account, token FROM tokenverify WHERE id_account = '${id_account}' AND token = '${token}'`);
+    result = result.rows[0];
+  } catch (error) {
+    throw error;
+  } finally {
+    dbConnection.release(true);
+  }
+  return result;
+}
+
+const findTokenByAccount = async (id_account) => {
+  const dbConnection = await PostgresConnection.connect();
+  let result;
+  try {
+    result = await dbConnection.query(`SELECT id_account, token FROM tokenverify WHERE id_account = '${id_account}'`);
     result = result.rows[0];
   } catch (error) {
     throw error;
