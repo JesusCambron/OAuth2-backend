@@ -28,7 +28,8 @@ export const logInGoogle = async (req, res) => {
 
 export const signUpGoogle = async (req, res) => {
   const { access_token } = req.body;
-  const { sub, given_name, family_name, email } = getUserInfoFromGoogle(access_token);
+  const { sub, given_name, family_name, email } = await getUserInfoFromGoogle(access_token);
+  console.log(sub, given_name, family_name, email);
   const { status, message } = await saveNewAccount(given_name, family_name, email, sub);
   res.status(status).send(message);
 }
@@ -67,8 +68,9 @@ export const resendToken = async (req, res) => {
 
 const saveNewAccount = async (first_name, last_name, email, pw) => {
   try {
-    const account = await createAccount(first_name, last_name, email, pw)
-    const tokenVerify = await createTokenVerify(account.id)
+    const account = await createAccount(first_name, last_name, email, pw);
+    console.log(account);
+    const tokenVerify = await createTokenVerify(account.id);
     const verifyLink = `${HOST_FRONT_VERIFY_ACCOUNT_LINK}/${account.id}/${tokenVerify.token}`;
     await sendEmail(email, "Activate your acount", 'VerifyAccount', { verifyLink })
     return { status: HTTP_201_CREATED, message: { message: "Created" } };
@@ -78,6 +80,8 @@ const saveNewAccount = async (first_name, last_name, email, pw) => {
 }
 
 const getUserInfoFromGoogle = async (access_token) => {
+  console.log(access_token);
+  console.log(`${URL_USER_INFO}${access_token}`);
   const data = await fetch(`${URL_USER_INFO}${access_token}`)
     .then(response => response.json())
     .catch(err => console.log(err))
