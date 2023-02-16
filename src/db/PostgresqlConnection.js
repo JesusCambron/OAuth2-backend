@@ -10,19 +10,7 @@ const pool = new pg.Pool({
 })
 
 const connect = () => {
-  pool.connect((err, client, release) => {
-    console.log("Connecting to Postgresql...");
-    if (err) {
-      return console.error('Error acquiring client', err.stack)
-    }
-    client.query('select now()', (err, result) => {
-      release()
-      if (err) {
-        return console.error('Error executing query', err.stack)
-      }
-      console.log(`Connected to Postgresql DB at ${new Date(result.rows[0].now).toLocaleString()}`)
-    })
-  })
+  return pool.connect();
 }
 
 const disconnect = () => {
