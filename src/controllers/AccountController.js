@@ -29,7 +29,6 @@ export const logInGoogle = async (req, res) => {
 export const signUpGoogle = async (req, res) => {
   const { access_token } = req.body;
   const { sub, given_name, family_name, email } = await getUserInfoFromGoogle(access_token);
-  console.log(sub, given_name, family_name, email);
   const { status, message } = await saveNewAccount(given_name, family_name, email, sub);
   res.status(status).send(message);
 }
@@ -42,7 +41,6 @@ export const verifyAccount = async (req, res) => {
 
     const tokenDB = await findToken(id_account, token);
     if (!tokenDB) return res.status(HTTP_400_BAD_REQUEST).send({ message: `Invalid link` })
-
     await activateAccount(account, tokenDB);
     res.status(HTTP_200_OK).send({ message: "Account verify" });
   } catch (error) {
@@ -55,7 +53,7 @@ export const resendToken = async (req, res) => {
   try {
     const account = await findAccountByEmail(email);
     if (account) {
-      const token = await findTokenByAccount(account.id);
+      const { token } = await findTokenByAccount(account.id);
       const verifyLink = `${HOST_FRONT_VERIFY_ACCOUNT_LINK}/${account.id}/${token}`;
       await sendEmail(email, "Activate your acount", 'VerifyAccount', { verifyLink })
       return res.status(HTTP_200_OK).send({ message: "Resend" });
@@ -69,7 +67,6 @@ export const resendToken = async (req, res) => {
 const saveNewAccount = async (first_name, last_name, email, pw) => {
   try {
     const account = await createAccount(first_name, last_name, email, pw);
-    console.log(account);
     const tokenVerify = await createTokenVerify(account.id);
     const verifyLink = `${HOST_FRONT_VERIFY_ACCOUNT_LINK}/${account.id}/${tokenVerify.token}`;
     await sendEmail(email, "Activate your acount", 'VerifyAccount', { verifyLink })
@@ -80,8 +77,6 @@ const saveNewAccount = async (first_name, last_name, email, pw) => {
 }
 
 const getUserInfoFromGoogle = async (access_token) => {
-  console.log(access_token);
-  console.log(`${URL_USER_INFO}${access_token}`);
   const data = await fetch(`${URL_USER_INFO}${access_token}`)
     .then(response => response.json())
     .catch(err => console.log(err))
@@ -122,8 +117,7 @@ const validateLogin = async (email, pw) => {
   try {
     const account = await findAccountByEmail(email);
     if (account) {
-      if (!account.is_active) return { status: HTTP_400_BAD_REQUEST, message: { message: "VERIFY YOUR ACCOUNT" } };
-
+      if (!account.is_active) return { status: HTTP_400_BAD_REQUEST, message: { message: "Verify your account" } };
       if (validatePassword(pw, account.pw)) {
         const token = jwt.sign({
           first_name: account.first_name,
